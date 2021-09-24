@@ -149,18 +149,35 @@ function SF.islower(s)
    return s:lower() == s
 end
 
--- super inefficient
+SF.pieceConv = 
+{
+   ["k"] = "K",
+   ["r"] = "R",
+   ["b"] = "B",
+   ["p"] = "P",
+   ["n"] = "N",
+   ["q"] = "Q",
+
+   ["K"] = "k",
+   ["R"] = "r",
+   ["B"] = "b",
+   ["P"] = "p",
+   ["N"] = "n",
+   ["Q"] = "q",
+
+   ["."] = ".",
+   [" "] = " ",
+   ["\n"] = "\n",
+}
+
+-- since lua strings are immutable, conv to byte array
 function SF.swapcase(s)
-   local s2 = ''
-   for i=1,#s do
-      local c = s:sub(i, i)
-      if SF.islower(c) then
-	 s2 = s2 .. c:upper()
-      else
-	 s2 = s2 .. c:lower()
-      end
+   tbl = {string.byte(s,1,-1)}
+   vout = {}
+   for i = 1, #tbl do
+      vout[i] = SF.pieceConv[string.char(tbl[i])]
    end
-   return s2
+   return table.concat(vout)
 end
 
 SF.Position = {}
