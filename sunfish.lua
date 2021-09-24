@@ -11,7 +11,7 @@ local SF = {}
 SF.TABLE_SIZE = 1e6
 
 -- This constant controls how much time we spend on looking for optimal moves.
-SF.NODES_SEARCHED = 1e4
+SF.NODES_SEARCHED = 1e2
 
 -- Mate value must be greater than 8*queen + 2*(rook+knight+bishop)
 -- King value is set to twice this value such that if the opponent is
@@ -140,12 +140,12 @@ end
 SF.special = '. \n'
 
 function SF.isupper(s)
-   if SF.special:find(s) then return false end
+   if s == "." or s == " " or s == "\n" then return false end
    return s:upper() == s
 end
 
 function SF.islower(s)
-   if SF.special:find(s) then return false end
+   if s == "." or s == " " or s == "\n" then return false end
    return s:lower() == s
 end
 
@@ -255,16 +255,16 @@ function SF.Position:move(move)
    board = put(board, j + __1, board:sub(i + __1, i + __1))
    board = put(board, i + __1, '.')
    -- Castling rights
-   if i == sf.A1 then wc = {false, wc[0 + __1]}; end
-   if i == sf.H1 then wc = {wc[0 + __1], false}; end
-   if j == sf.A8 then bc = {bc[0 + __1], false}; end
-   if j == sf.H8 then bc = {false, bc[1 + __1]}; end
+   if i == SF.A1 then wc = {false, wc[0 + __1]}; end
+   if i == SF.H1 then wc = {wc[0 + __1], false}; end
+   if j == SF.A8 then bc = {bc[0 + __1], false}; end
+   if j == SF.H8 then bc = {false, bc[1 + __1]}; end
    -- Castling
    if p == 'K' then
       wc = {false, false}
       if math.abs(j-i) == 2 then
 	 kp = math.floor((i+j)/2)
-	 board = put(board, j < i and sf.A1 + __1 or H1 + __1 , '.')
+	 board = put(board, j < i and SF.A1 + __1 or SF.H1 + __1 , '.')
 	 board = put(board, kp + __1, 'R')
       end
    end

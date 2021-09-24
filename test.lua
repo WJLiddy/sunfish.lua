@@ -3,13 +3,17 @@ sf = require "sunfish"
 
 local pos = sf.Position.new(sf.initial, 0, {true,true}, {true,true}, 0, 0)
 
-while true do
+local profiler = require("profiler")
+profiler.start()
+
+for i=1,3 do
    -- We add some spaces to the board before we print it.
    -- That makes it more readable and pleasing.
    sf.printboard(pos.board)
 
    -- We query the user until she enters a legal move.
    local move = nil
+   --[[
    while true do
   print("Your move: ")
   local crdn = io.read()
@@ -21,7 +25,9 @@ while true do
      print("Invalid input. Please enter a move in the proper format (e.g. g8f6)")
   end
    end
-   pos = pos:move(move)
+   --]]
+
+
 
    -- After our move we rotate the board and print it again.
    -- This allows us to see the effect of our move.
@@ -47,3 +53,7 @@ while true do
    print("My move:", sf.render(119-move[0 + __1]) .. sf.render(119-move[1 + __1]))
    pos = pos:move(move)
 end
+
+-- Code block and/or called functions to profile --
+profiler.stop()
+profiler.report("profiler.log")
