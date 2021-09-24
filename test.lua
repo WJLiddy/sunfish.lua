@@ -3,14 +3,14 @@ sf = require "sunfish"
 
 local pos = sf.Position.new(sf.initial, 0, {true,true}, {true,true}, 0, 0)
 
-local profiler = require("profiler")
-profiler.start()
+--local profiler = require("profiler")
+--profiler.start()
 
 
-for i=1,4 do
+while true do
    -- We add some spaces to the board before we print it.
    -- That makes it more readable and pleasing.
-   sf.printboard(pos.board)
+   --sf.printboard(pos.board)
 
    -- We query the user until she enters a legal move.
    local move = nil
@@ -28,14 +28,28 @@ for i=1,4 do
    end
    --]]
 
-
-
-   -- After our move we rotate the board and print it again.
-   -- This allows us to see the effect of our move.
-   sf.printboard(pos:rotate().board)
-
    -- Fire up the engine to look for a move.
-   local move, score = sf.search(pos)
+   -- You may use the plain option:
+     local result = sf.search(pos)
+	 move = result[1]
+	 score = result[2]
+   
+   -- or we got COROUTINES!
+      --[[
+   co = coroutine.create(sf.search)
+   local result = nil
+	while(not result) do
+		print("itr")
+		res, result = coroutine.resume(co,pos,100,true)
+	end
+	move = result[1]
+	score = result[2]
+   --]]
+
+   -- The black player moves from a rotated position, so we have to
+   -- 'back rotate' the move before printing it.
+   print("My move:", sf.render(119-move[0 + __1]) .. sf.render(119-move[1 + __1]))
+   pos = pos:move(move)
    -- print(move, score)
    assert(score)
    if score <= -sf.MATE_VALUE then
@@ -46,16 +60,14 @@ for i=1,4 do
   print("You lost")
   break
    end
+   sf.printboard(pos:rotate().board)
 
-   assert(move)
+    assert(move)
 
-   -- The black player moves from a rotated position, so we have to
-   -- 'back rotate' the move before printing it.
-   print("My move:", sf.render(119-move[0 + __1]) .. sf.render(119-move[1 + __1]))
-   pos = pos:move(move)
 end
 
+sf.printboard(pos:rotate().board)
 -- Code block and/or called functions to profile --
 
-profiler.stop()
-profiler.report("profiler.log")
+--profiler.stop()
+--profiler.report("profiler.log")
