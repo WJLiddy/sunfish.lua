@@ -1,22 +1,28 @@
 -- sunfish.lua, a human transpiler work of https://github.com/thomasahle/sunfish
--- embarassing and ugly translation done by Soumith Chintala
+-- original translation by Soumith Chintala / made require'able by WJLIDDY
+
+-- forces one-index correction, be wary
+
 -- Code License: BSD
 
+local SF = {}
+
 -- The table size is the maximum number of elements in the transposition table.
-local TABLE_SIZE = 1e6
+SF.TABLE_SIZE = 1e6
 
 -- This constant controls how much time we spend on looking for optimal moves.
-local NODES_SEARCHED = 1e4
+SF.NODES_SEARCHED = 1e4
 
 -- Mate value must be greater than 8*queen + 2*(rook+knight+bishop)
 -- King value is set to twice this value such that if the opponent is
 -- 8 queens up, but we got the king, we still exceed MATE_VALUE.
-local MATE_VALUE = 30000
+SF.MATE_VALUE = 30000
 
 -- Our board is represented as a 120 character string. The padding allows for
 -- fast detection of moves that don't stay within the board.
-local A1, H1, A8, H8 = 91, 98, 21, 28
-local initial = 
+SF.A1, SF.H1, SF.A8, SF.H8 = 91, 98, 21, 28
+
+SF.initial = 
     '         \n' .. --   0 -  9
     '         \n' .. --  10 - 19
     ' rnbqkbnr\n' .. --  20 - 29
@@ -30,21 +36,21 @@ local initial =
     '         \n' .. -- 100 -109
     '          '     -- 110 -119
 
-local __1 = 1 -- 1-index correction
+__1 = 1 -- 1-index correction
 -------------------------------------------------------------------------------
 -- Move and evaluation tables
 -------------------------------------------------------------------------------
-local N, E, S, W = -10, 1, 10, -1
-local directions = {
-    P = {N, 2*N, N+W, N+E},
-    N = {2*N+E, N+2*E, S+2*E, 2*S+E, 2*S+W, S+2*W, N+2*W, 2*N+W},
-    B = {N+E, S+E, S+W, N+W},
-    R = {N, E, S, W},
-    Q = {N, E, S, W, N+E, S+E, S+W, N+W},
-    K = {N, E, S, W, N+E, S+E, S+W, N+W}
+SF.N, SF.E, SF.S, SF.W = -10, 1, 10, -1
+SF.directions = {
+    P = {SF.N, 2*SF.N, SF.N+SF.W, SF.N+SF.E},
+    N = {2*SF.N+SF.E, SF.N+2*SF.E, SF.S+2*SF.E, 2*SF.S+SF.E, 2*SF.S+SF.W, SF.S+2*SF.W, SF.N+2*SF.W, 2*SF.N+SF.W},
+    B = {SF.N+SF.E, SF.S+SF.E, SF.S+SF.W, SF.N+SF.W},
+    R = {SF.N, SF.E, SF.S, SF.W},
+    Q = {SF.N, SF.E, SF.S, SF.W, SF.N+SF.E, SF.S+SF.E, SF.S+SF.W, SF.N+SF.W},
+    K = {SF.N, SF.E, SF.S, SF.W, SF.N+SF.E, SF.S+SF.E, SF.S+SF.W, SF.N+SF.W}
 }
 
-local pst = {
+SF.pst = {
     P = {0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 0, 0, 0, 0, 0, 0, 0, 0, 0,
         0, 198, 198, 198, 198, 198, 198, 198, 198, 0,
@@ -123,7 +129,7 @@ local pst = {
 -------------------------------------------------------------------------------
 -- Chess logic
 -------------------------------------------------------------------------------
-local function isspace(s)
+function SF.isspace(s)
    if s == ' ' or s == '\n' then
       return true
    else
@@ -131,24 +137,24 @@ local function isspace(s)
    end
 end
 
-local special = '. \n'
+SF.special = '. \n'
 
-local function isupper(s)
-   if special:find(s) then return false end
+function SF.isupper(s)
+   if SF.special:find(s) then return false end
    return s:upper() == s
 end
 
-local function islower(s)
-   if special:find(s) then return false end
+function SF.islower(s)
+   if SF.special:find(s) then return false end
    return s:lower() == s
 end
 
 -- super inefficient
-local function swapcase(s)
+function SF.swapcase(s)
    local s2 = ''
    for i=1,#s do
       local c = s:sub(i, i)
-      if islower(c) then
+      if SF.islower(c) then
 	 s2 = s2 .. c:upper()
       else
 	 s2 = s2 .. c:lower()
@@ -157,9 +163,9 @@ local function swapcase(s)
    return s2
 end
 
-local Position = {}
+SF.Position = {}
 
-function Position.new(board, score, wc, bc, ep, kp)
+function SF.Position.new(board, score, wc, bc, ep, kp)
    --[[  A state of a chess game
       board -- a 120 char representation of the board
       score -- the board evaluation
@@ -175,42 +181,42 @@ function Position.new(board, score, wc, bc, ep, kp)
    self.bc = bc
    self.ep = ep
    self.kp = kp
-   for k,v in pairs(Position) do self[k] = v end
+   for k,v in pairs(SF.Position) do self[k] = v end
    return self
 end
 
-function Position:genMoves()
+function SF.Position:genMoves()
    local moves = {}
    -- For each of our pieces, iterate through each possible 'ray' of moves,
    -- as defined in the 'directions' map. The rays are broken e.g. by
    -- captures or immediately in case of pieces such as knights.
    for i = 1 - __1, #self.board - __1 do
       local p = self.board:sub(i + __1, i + __1)
-      if isupper(p) and directions[p] then
-	 for _, d in ipairs(directions[p]) do
+      if SF.isupper(p) and SF.directions[p] then
+	 for _, d in ipairs(SF.directions[p]) do
 	    local limit = (i+d) + (10000) * d -- fake limit
 	    for j=i+d, limit, d do
 	       local q = self.board:sub(j + __1, j + __1)
 	       -- Stay inside the board
-	       if isspace(self.board:sub(j + __1, j + __1)) then break; end
+	       if SF.isspace(self.board:sub(j + __1, j + __1)) then break; end
 	       -- Castling
-	       if i == A1 and q == 'K' and self.wc[0 + __1] then
+	       if i == sf.A1 and q == 'K' and self.wc[0 + __1] then
 		  table.insert(moves,  {j, j-2})
 	       end
-	       if i == H1 and q == 'K' and self.wc[1 + __1] then 
+	       if i == sf.H1 and q == 'K' and self.wc[1 + __1] then 
 		  table.insert(moves,  {j, j+2})
 	       end
 	       -- print(p, q, i, d, j)
 	       -- No friendly captures
-	       if isupper(q) then break; end
+	       if SF.isupper(q) then break; end
 	       -- Special pawn stuff
-	       if p == 'P' and (d == N+W or d == N+E) and q == '.' and j ~= self.ep and j ~= self.kp then 
+	       if p == 'P' and (d == SF.N+SF.W or d == SF.N+SF.E) and q == '.' and j ~= self.ep and j ~= self.kp then 
 		  break; 
 	       end
-	       if p == 'P' and (d == N or d == 2*N) and q ~= '.' then 
+	       if p == 'P' and (d == SF.N or d == 2*SF.N) and q ~= '.' then 
 		  break; 
 	       end
-	       if p == 'P' and d == 2*N and (i < A1+N or self.board:sub(i+N + __1, i+N + __1) ~= '.') then 
+	       if p == 'P' and d == 2*SF.N and (i < sf.A1+SF.N or self.board:sub(i+SF.N + __1, i+SF.N + __1) ~= '.') then 
 		  break; 
 	       end
 	       -- Move it
@@ -219,7 +225,7 @@ function Position:genMoves()
 	       -- Stop crawlers from sliding
 	       if p == 'P' or p == 'N' or p == 'K' then break; end
 	       -- No sliding after captures
-	       if islower(q) then break; end
+	       if SF.islower(q) then break; end
 	    end
 	 end
       end
@@ -228,13 +234,13 @@ function Position:genMoves()
 end
 
 
-function Position:rotate()
+function SF.Position:rotate()
    return self.new(
-      swapcase(self.board:reverse()), -self.score,
+      SF.swapcase(self.board:reverse()), -self.score,
       self.bc, self.wc, 119-self.ep, 119-self.kp)
 end
 
-function Position:move(move)
+function SF.Position:move(move)
    assert(move) -- move is zero-indexed
    local i, j = move[0 + __1], move[1 + __1]
    local p, q = self.board:sub(i + __1, i + __1), self.board:sub(j + __1, j + __1)
@@ -249,60 +255,60 @@ function Position:move(move)
    board = put(board, j + __1, board:sub(i + __1, i + __1))
    board = put(board, i + __1, '.')
    -- Castling rights
-   if i == A1 then wc = {false, wc[0 + __1]}; end
-   if i == H1 then wc = {wc[0 + __1], false}; end
-   if j == A8 then bc = {bc[0 + __1], false}; end
-   if j == H8 then bc = {false, bc[1 + __1]}; end
+   if i == sf.A1 then wc = {false, wc[0 + __1]}; end
+   if i == sf.H1 then wc = {wc[0 + __1], false}; end
+   if j == sf.A8 then bc = {bc[0 + __1], false}; end
+   if j == sf.H8 then bc = {false, bc[1 + __1]}; end
    -- Castling
    if p == 'K' then
       wc = {false, false}
       if math.abs(j-i) == 2 then
 	 kp = math.floor((i+j)/2)
-	 board = put(board, j < i and A1 + __1 or H1 + __1 , '.')
+	 board = put(board, j < i and sf.A1 + __1 or H1 + __1 , '.')
 	 board = put(board, kp + __1, 'R')
       end
    end
    -- Special pawn stuff
    if p == 'P' then
-      if A8 <= j and j <= H8 then
+      if SF.A8 <= j and j <= SF.H8 then
 	 board = put(board, j + __1, 'Q')
       end
-      if j - i == 2*N then
-	 ep = i + N
+      if j - i == 2*SF.N then
+	 ep = i + SF.N
       end
-      if ((j - i) == N+W or (j - i) == N+E) and q == '.' then
-	 board = put(board, j+S + __1, '.')
+      if ((j - i) == SF.N+SF.W or (j - i) == SF.N+SF.E) and q == '.' then
+	 board = put(board, j+SF.S + __1, '.')
       end
    end
    -- We rotate the returned position, so it's ready for the next player
    return self.new(board, score, wc, bc, ep, kp):rotate()
 end
 
-function Position:value(move)
+function SF.Position:value(move)
    local i, j = move[0 + __1], move[1 + __1]
    local p, q = self.board:sub(i + __1, i + __1), self.board:sub(j + __1, j + __1)
    -- Actual move
-   local score = pst[p][j + __1] - pst[p][i + __1]
+   local score = SF.pst[p][j + __1] - SF.pst[p][i + __1]
    -- Capture
-   if islower(q) then
-      score = score + pst[q:upper()][j + __1]
+   if SF.islower(q) then
+      score = score + SF.pst[q:upper()][j + __1]
    end
    -- Castling check detection
    if math.abs(j-self.kp) < 2 then
-      score = score + pst['K'][j + __1]
+      score = score + SF.pst['K'][j + __1]
    end
    -- Castling
    if p == 'K' and math.abs(i-j) == 2 then
-      score = score + pst['R'][math.floor((i+j)/2) + __1]
-      score = score - pst['R'][j < i and A1 + __1 or H1 + __1]
+      score = score + SF.pst['R'][math.floor((i+j)/2) + __1]
+      score = score - SF.pst['R'][j < i and SF.A1 + __1 or SF.H1 + __1]
    end
    -- Special pawn stuff
    if p == 'P' then
-      if A8 <= j and j <= H8 then
-	 score = score + pst['Q'][j + __1] - pst['P'][j + __1]
+      if SF.A8 <= j and j <= SF.H8 then
+	 score = score + SF.pst['Q'][j + __1] - SF.pst['P'][j + __1]
       end
       if j == self.ep then
-	 score = score + pst['P'][j+S + __1]
+	 score = score + SF.pst['P'][j+SF.S + __1]
       end
    end
    return score
@@ -310,45 +316,45 @@ end
 
 -- the lamest possible and most embarassing namedtuple hasher ordered dict
 -- I apologize to the world for writing it.
-local tp = {}
-local tp_index = {}
-local tp_count = 0
+SF.tp = {}
+SF.tp_index = {}
+SF.tp_count = 0
 
-local function tp_set(pos, val)
+function SF.tp_set(pos, val)
    local b1 = pos.bc[1] and 'true' or 'false'
    local b2 = pos.bc[2] and 'true' or 'false'
    local w1 = pos.bc[1] and 'true' or 'false'
    local w2 = pos.bc[2] and 'true' or 'false'
    local hash = pos.board .. ';' .. pos.score .. ';' .. w1 .. ';' .. w2 .. ';' 
       .. b1 .. ';' .. b2 .. ';' .. pos.ep .. ';' .. pos.kp
-   tp[hash] = val
-   tp_index[#tp_index + 1] = hash
-   tp_count = tp_count + 1
+      SF.tp[hash] = val
+   SF.tp_index[#SF.tp_index + 1] = hash
+   SF.tp_count = SF.tp_count + 1
 end
 
-local function tp_get(pos)
+function SF.tp_get(pos)
    local b1 = pos.bc[1] and 'true' or 'false'
    local b2 = pos.bc[2] and 'true' or 'false'
    local w1 = pos.bc[1] and 'true' or 'false'
    local w2 = pos.bc[2] and 'true' or 'false'
    local hash = pos.board .. ';' .. pos.score .. ';' .. w1 .. ';' .. w2 .. ';' 
       .. b1 .. ';' .. b2 .. ';' .. pos.ep .. ';' .. pos.kp
-   return tp[hash]
+   return SF.tp[hash]
 end
 
-local function tp_popitem()
-   tp[tp_index[#tp_index]] = nil
-   tp_index[#tp_index] = nil
-   tp_count = tp_count - 1
+function SF.tp_popitem()
+   SF.tp[SF.tp_index[#SF.tp_index]] = nil
+   SF.tp_index[#SF.tp_index] = nil
+   SF.tp_count = SF.tp_count - 1
 end
 
 -------------------------------------------------------------------------------
 -- Search logic
 -------------------------------------------------------------------------------
 
-local nodes = 0
+SF.nodes = 0
 
-local function bound(pos, gamma, depth)
+function SF.bound(pos, gamma, depth)
    --[[ returns s(pos) <= r < gamma    if s(pos) < gamma
         returns s(pos) >= r >= gamma   if s(pos) >= gamma ]]--
     nodes = nodes + 1
@@ -356,7 +362,7 @@ local function bound(pos, gamma, depth)
     -- Look in the table if we have already searched this position before.
     -- We use the table value if it was done with at least as deep a search
     -- as ours, and the gamma value is compatible.
-    local entry = tp_get(pos)
+    local entry = SF.tp_get(pos)
     assert(depth)
     if entry ~= nil and entry.depth >= depth and (
             entry.score < entry.gamma and entry.score < gamma or
@@ -365,12 +371,12 @@ local function bound(pos, gamma, depth)
     end
 
     -- Stop searching if we have won/lost.
-    if math.abs(pos.score) >= MATE_VALUE then
+    if math.abs(pos.score) >= SF.MATE_VALUE then
         return pos.score
     end
 
     -- Null move. Is also used for stalemate checking
-    local nullscore = depth > 0 and -bound(pos:rotate(), 1-gamma, depth-3) or pos.score
+    local nullscore = depth > 0 and -SF.bound(pos:rotate(), 1-gamma, depth-3) or pos.score
     --nullscore = -MATE_VALUE*3 if depth > 0 else pos.score
     if nullscore >= gamma then
         return nullscore
@@ -380,7 +386,7 @@ local function bound(pos, gamma, depth)
     -- cuts. At the next level of the tree we are going to minimize the score.
     -- This can be shown equal to maximizing the negative score, with a slightly
     -- adjusted gamma value.
-    local best, bmove = -3*MATE_VALUE, nil
+    local best, bmove = -3*SF.MATE_VALUE, nil
     local moves = pos:genMoves()
     local function sorter(a, b) 
        local va = pos:value(a)
@@ -401,7 +407,7 @@ local function bound(pos, gamma, depth)
        if depth <= 0 and pos:value(move) < 150 then
 	  break
        end
-       local score = -bound(pos:move(move), 1-gamma, depth-1)
+       local score = -SF.bound(pos:move(move), 1-gamma, depth-1)
        -- print(move[1] .. ' ' ..  move[2] .. ' ' .. score)
         if score > best then
 	   best = score
@@ -418,7 +424,7 @@ local function bound(pos, gamma, depth)
     end
     -- Check for stalemate. If best move loses king, but not doing anything
     -- would save us. Not at all a perfect check.
-    if depth > 0 and (best <= -MATE_VALUE) and nullscore > -MATE_VALUE then
+    if depth > 0 and (best <= -SF.MATE_VALUE) and nullscore > -SF.MATE_VALUE then
        best = 0
     end
 
@@ -426,17 +432,17 @@ local function bound(pos, gamma, depth)
     -- the play loop. We also trim the transposition table in FILO order.
     -- We prefer fail-high moves, as they are the ones we can build our pv from.
     if entry == nil or depth >= entry.depth and best >= gamma then
-       tp_set(pos, {depth = depth, score = best, gamma = gamma, move = bmove})
-       if tp_count > TABLE_SIZE then
-	  tp_popitem()
+      SF.tp_set(pos, {depth = depth, score = best, gamma = gamma, move = bmove})
+       if SF.tp_count > SF.TABLE_SIZE then
+         SF.tp_popitem()
        end
     end
     return best
 end
 
-local function search(pos, maxn)
+function SF.search(pos, maxn)
    -- Iterative deepening MTD-bi search
-   maxn = maxn or NODES_SEARCHED
+   maxn = maxn or SF.NODES_SEARCHED
    nodes = 0 -- the global value "nodes"
    local score
 
@@ -448,10 +454,10 @@ local function search(pos, maxn)
       -- However this may be broken by values from the transposition table,
       -- as they don't have the same concept of p(score). Hence we just use
       -- 'lower < upper - margin' as the loop condition.
-      local lower, upper = -3*MATE_VALUE, 3*MATE_VALUE
+      local lower, upper = -3*SF.MATE_VALUE, 3*SF.MATE_VALUE
       while lower < upper - 3 do
 	 local gamma = math.floor((lower+upper+1)/2)
-	 score = bound(pos, gamma, depth)
+	 score = SF.bound(pos, gamma, depth)
 	 -- print(nodes, gamma, score)
 	 assert(score)
 	 if score >= gamma then
@@ -467,14 +473,14 @@ local function search(pos, maxn)
 
       -- We stop deepening if the global N counter shows we have spent too
       -- long, or if we have already won the game.
-      if nodes >= maxn or math.abs(score) >= MATE_VALUE then
+      if nodes >= maxn or math.abs(score) >= SF.MATE_VALUE then
 	 break
       end
    end
 
    -- If the game hasn't finished we can retrieve our move from the
    -- transposition table.
-   local entry = tp_get(pos)
+   local entry = SF.tp_get(pos)
    if entry ~= nil then
       return entry.move, score
    end
@@ -486,22 +492,22 @@ end
 -- User interface
 -------------------------------------------------------------------------------
 
-local function parse(c)
+function SF.parse(c)
    if not c then return nil end
    local p, v = c:sub(1,1), c:sub(2,2)
    if not (p and v and tonumber(v)) then return nil end
 
    local fil, rank = string.byte(p) - string.byte('a'), tonumber(v) - 1
-   return A1 + fil - 10*rank
+   return sf.A1 + fil - 10*rank
 end
 
 
-local function render(i)
-   local rank, fil = math.floor((i - A1) / 10), (i - A1) % 10
+function SF.render(i)
+   local rank, fil = math.floor((i - sf.A1) / 10), (i - sf.A1) % 10
    return string.char(fil + string.byte('a')) .. tostring(-rank + 1)
 end
 
-local function ttfind(t, k)
+function SF.ttfind(t, k)
    assert(t)
    if not k then return false end
    for _,v in ipairs(t) do
@@ -512,7 +518,7 @@ local function ttfind(t, k)
    return false
 end
 
-local strsplit = function(a)
+SF.strsplit = function(a)
    local out = {}
    while true do
       local pos, _ = a:find('\n')
@@ -527,8 +533,8 @@ local strsplit = function(a)
    return out
 end
 
-local function printboard(board)
-   local l = strsplit(board, '\n')
+function SF.printboard(board)
+   local l = SF.strsplit(board, '\n')
    for k,v in ipairs(l) do
       for i=1,#v do
 	 io.write(v:sub(i,i))
@@ -538,62 +544,6 @@ local function printboard(board)
    end
 end
 
-local function main()
-   local pos = Position.new(initial, 0, {true,true}, {true,true}, 0, 0)
 
-   while true do
-      -- We add some spaces to the board before we print it.
-      -- That makes it more readable and pleasing.
-      printboard(pos.board)
-
-      -- We query the user until she enters a legal move.
-      local move = nil
-      while true do
-	 print("Your move: ")
-	 local crdn = io.read()
-	 move = {parse(crdn:sub(1,2)), parse(crdn:sub(3,4))}
-	 if move[1] and move[2] and ttfind(pos:genMoves(), move) then
-	    break
-	 else
-	    -- Inform the user when invalid input (e.g. "help") is entered
-	    print("Invalid input. Please enter a move in the proper format (e.g. g8f6)")
-	 end
-      end
-      pos = pos:move(move)
-
-      -- After our move we rotate the board and print it again.
-      -- This allows us to see the effect of our move.
-      printboard(pos:rotate().board)
-
-      -- Fire up the engine to look for a move.
-      local move, score = search(pos)
-      -- print(move, score)
-      assert(score)
-      if score <= -MATE_VALUE then
-	 print("You won")
-	 break
-      end
-      if score >= MATE_VALUE then
-	 print("You lost")
-	 break
-      end
-
-      assert(move)
-
-      -- The black player moves from a rotated position, so we have to
-      -- 'back rotate' the move before printing it.
-      print("My move:", render(119-move[0 + __1]) .. render(119-move[1 + __1]))
-      pos = pos:move(move)
-   end
-end
-
-
-main()
-
-
-
-
-
-
-
+return SF
 
