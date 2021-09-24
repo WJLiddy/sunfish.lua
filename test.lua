@@ -6,7 +6,8 @@ local pos = sf.Position.new(sf.initial, 0, {true,true}, {true,true}, 0, 0)
 local profiler = require("profiler")
 profiler.start()
 
-for i=1,3 do
+
+for i=1,4 do
    -- We add some spaces to the board before we print it.
    -- That makes it more readable and pleasing.
    sf.printboard(pos.board)
@@ -55,5 +56,6 @@ for i=1,3 do
 end
 
 -- Code block and/or called functions to profile --
+
 profiler.stop()
 profiler.report("profiler.log")
