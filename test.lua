@@ -26,16 +26,17 @@ while true do
      print("Invalid input. Please enter a move in the proper format (e.g. g8f6)")
   end
    end
-   --]]
+
 
    -- Fire up the engine to look for a move.
    -- You may use the plain option:
      local result = sf.search(pos)
 	 move = result[1]
 	 score = result[2]
-   
+      --]]
    -- or we got COROUTINES!
-      --[[
+
+   --[[
    co = coroutine.create(sf.search)
    local result = nil
 	while(not result) do
@@ -44,7 +45,23 @@ while true do
 	end
 	move = result[1]
 	score = result[2]
-   --]]
+ 
+   print(result)
+   ]]--
+
+   lower = nil
+   upper = nil
+   max = 100
+   depth = 1
+   score = 0
+   nodes = 0
+   result = false
+	while(not result) do
+		print("itr")
+		result, pos, max, depth, lower, upper, score, nodes = sf.searchpart(pos, max, depth, lower, upper, score, nodes)
+	end
+	move = result
+
 
    -- The black player moves from a rotated position, so we have to
    -- 'back rotate' the move before printing it.
