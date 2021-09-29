@@ -420,7 +420,7 @@ function SF.precache_and_sort(position,moves)
    return cached
 end
 
-function SF.bound(pos, gamma, depth, corot) --
+function SF.bound(pos, gamma, depth) --
    --[[ returns s(pos) <= r < gamma    if s(pos) < gamma
         returns s(pos) >= r >= gamma   if s(pos) >= gamma ]] nodes =
       nodes + 1
@@ -458,15 +458,7 @@ function SF.bound(pos, gamma, depth, corot) --
    -- both these functions are somewhat expensive.
    local moves = pos:genMoves()
 
-   if(corot) then
-     coroutine.yield()
-   end
-
    local moves = SF.precache_and_sort(pos,moves)
-
-   if(corot) then
-     coroutine.yield()
-   end
 
    for _, move in ipairs(moves) do
       -- We check captures with the value function, as it also contains ep and kp
@@ -506,7 +498,7 @@ function SF.bound(pos, gamma, depth, corot) --
    return best
 end
 
-function SF.search(pos, maxn, corot)
+function SF.search(pos, maxn)
    -- Iterative deepening MTD-bi search
    maxn = maxn or SF.NODES_SEARCHED
    nodes = 0 -- the global value "nodes"
@@ -523,10 +515,7 @@ function SF.search(pos, maxn, corot)
       local lower, upper = -3 * SF.MATE_VALUE, 3 * SF.MATE_VALUE
       while lower < upper - 3 do
          local gamma = math.floor((lower + upper + 1) / 2)
-		 if(corot) then
-			coroutine.yield()
-		 end
-         score = SF.bound(pos, gamma, depth, corot)
+         score = SF.bound(pos, gamma, depth)
          -- print(nodes, gamma, score)
          assert(score)
          if score >= gamma then
@@ -556,57 +545,6 @@ function SF.search(pos, maxn, corot)
    return {nil, score}
 end
 
--- d = 1
-function SF.searchpart(pos, maxn, depth, lower, upper, score)
-   -- Iterative deepening MTD-bi search
-   maxn = maxn or SF.NODES_SEARCHED
-
-   -- We limit the depth to some constant, so we don't get a stack overflow in
-   -- the end game.
-   while depth < 98 do
-      -- The inner loop is a binary search on the score of the position.
-      -- Inv: lower <= score <= upper
-      -- However this may be broken by values from the transposition table,
-      -- as they don't have the same concept of p(score). Hence we just use
-      -- 'lower < upper - margin' as the loop condition.
-      if(lower == nil) then
-         lower, upper = -3 * SF.MATE_VALUE, 3 * SF.MATE_VALUE
-      end
-
-      if lower < upper - 3 then
-         local gamma = math.floor((lower + upper + 1) / 2)
-         score = SF.bound(pos, gamma, depth)
-         assert(score)
-         if score >= gamma then
-            lower = score
-         end
-         if score < gamma then
-            upper = score
-         end
-         return false, pos, max, depth, lower, upper, score, nodes
-      end
-      assert(score)
-
-      -- print(string.format("Searched %d nodes. Depth %d. Score %d(%d/%d)", nodes, depth, score, lower, upper))
-
-      -- We stop deepening if the global N counter shows we have spent too
-      -- long, or if we have already won the game.
-      if nodes >= maxn or math.abs(score) >= SF.MATE_VALUE then
-         break
-      end
-      lower = nil
-      depth = depth + 1
-   end
-
-   -- If the game hasn't finished we can retrieve our move from the
-   -- transposition table.
-   local entry = SF.tp_get(pos)
-   if entry ~= nil then
-      return entry.move, pos, max, depth, lower, upper, score, nodes
-   end
-   return {nil, score}
-end
-
 -------------------------------------------------------------------------------
 -- User interface
 -------------------------------------------------------------------------------
@@ -627,6 +565,11 @@ end
 function SF.render(i)
    local rank, fil = math.floor((i - sf.A1) / 10), (i - sf.A1) % 10
    return string.char(fil + string.byte("a")) .. tostring(-rank + 1)
+end
+
+function SF.convmove(i)
+   local rank, fil = math.floor((i - sf.A1) / 10), (i - sf.A1) % 10
+   return {fil,-rank}
 end
 
 function SF.ttfind(t, k)
@@ -657,6 +600,7 @@ SF.strsplit = function(a)
    return out
 end
 
+-- no worko in unity.
 function SF.printboard(board)
    local l = SF.strsplit(board, "\n")
    for k, v in ipairs(l) do
